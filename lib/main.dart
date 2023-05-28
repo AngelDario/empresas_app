@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:empresas_cliente/screens/login.dart';
-import 'package:empresas_cliente/screens/home.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:empresas_cliente/services/auth_service.dart';
 
