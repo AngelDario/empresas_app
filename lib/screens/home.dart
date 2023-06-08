@@ -1,13 +1,8 @@
 import 'dart:async';
-import 'package:empresas_cliente/screens/history.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:empresas_cliente/services/auth_service.dart';
 import 'package:empresas_cliente/screens/profilePage.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:empresas_cliente/screens/account.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:empresas_cliente/screens/maps.dart';
 
@@ -32,8 +27,8 @@ class _HomePageState extends State<HomePage> {
 
   void _recibirVariable(String variable) {
     setState(() {
-       address = variable;
-       print(address);
+      address = variable;
+       //print(address);
     });  
     //print(address);
   }
@@ -48,6 +43,7 @@ class _HomePageState extends State<HomePage> {
     };
     return currentLocation;
   }
+  
   Future<String> getAddressFromLocation() async {
 
     final Map<String, dynamic> location = await getCurrentLocation();
@@ -60,7 +56,27 @@ class _HomePageState extends State<HomePage> {
   Future<Map<dynamic, dynamic>> getRecomended() async{
     final databaseReference = FirebaseDatabase.instance.ref("clients");
     DatabaseEvent data = await databaseReference.once();
-    return data.snapshot.value as Map<dynamic, dynamic>;
+    Map<dynamic, dynamic> values = data.snapshot.value as Map<dynamic, dynamic>;
+
+    Map<dynamic, dynamic> recomended = {};
+
+    values.forEach((key, value) {
+      String id = key;
+      String name = value['name'];
+      String email = value['email'];
+      String photo = value['photoUrl'];
+
+      Map<String, dynamic> datos = {
+        'id': id,
+        'name': name,
+        'email': email,
+        'photoUrl': photo,
+      };
+
+      recomended[key] = datos;
+    });
+
+    return recomended;
   }
 
   @override
@@ -185,7 +201,7 @@ class _HomePageState extends State<HomePage> {
               future: getRecomended(),
               builder: (BuildContext context, AsyncSnapshot<Map<dynamic, dynamic>> snapshot){
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
+                  return const Expanded(child: Center(child: CircularProgressIndicator()));
                 } else if (snapshot.hasError) {
                   return Text("Error: ${snapshot.error}");
                 } else {
@@ -197,7 +213,7 @@ class _HomePageState extends State<HomePage> {
                         return ListTile(
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => ProfilePage(photoUrl: snapshot.data!.values.elementAt(index)['photoUrl'])),
+                            MaterialPageRoute(builder: (context) => ProfilePage(id: snapshot.data!.values.elementAt(index)['id'])),
                           ),
                           title: Text(snapshot.data!.values.elementAt(index)['name']),
                           subtitle: Text(snapshot.data!.values.elementAt(index)['email']),
