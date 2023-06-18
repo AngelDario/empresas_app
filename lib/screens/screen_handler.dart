@@ -1,17 +1,47 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:empresas_cliente/providers/address_provider.dart';
+import 'package:empresas_cliente/providers/user_provider.dart';
 import 'package:empresas_cliente/screens/home.dart';
 import 'package:empresas_cliente/screens/history.dart';
 import 'package:empresas_cliente/screens/category.dart';
 import 'package:empresas_cliente/screens/account.dart';
+// ignore: depend_on_referenced_packages
 import 'package:geolocator/geolocator.dart';
+// ignore: depend_on_referenced_packages
+import 'package:geocoding/geocoding.dart';
 import 'package:flutter/material.dart';
+// ignore: depend_on_referenced_packages
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:empresas_cliente/services/auth_service.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:logger/logger.dart';
+import 'package:persistent_bottom_nav_bar/persistent_tab_view.dart';
+import 'package:provider/provider.dart';
 
-// Insertar en la base de datos los datos del usuario
-// Datos necesarios son: nombre, email, foto
+var logger = Logger(
+  printer: PrettyPrinter(),
+  filter: null,
+  output: null,
+);
+
+Future<Map<String, dynamic>> getCurrentLocation() async {
+  final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high);
+  final latitude = position.latitude;
+  final longitude = position.longitude;
+
+  List<Placemark> placemarks =
+      await placemarkFromCoordinates(latitude, longitude);
+  Placemark place = placemarks[0];
+  String addr = "${place.street}, ${place.locality}, ${place.country}";
+
+  final Map<String, dynamic> currentLocation = {
+    'latitude': latitude,
+    'longitude': longitude,
+    'address': addr,
+  };
+
+  return currentLocation;
+}
 
 class Screenhandler extends StatefulWidget {
   const Screenhandler({super.key});
@@ -20,100 +50,80 @@ class Screenhandler extends StatefulWidget {
   State<Screenhandler> createState() => _ScreenhandlerState();
 }
 
-class _ScreenhandlerState extends State<Screenhandler> { 
-  //String? user = FirebaseAuth.instance.currentUser!.email ?? FirebaseAuth.instance.currentUser!.displayName;
-  
-  final databaseReference = FirebaseDatabase.instance.ref();
-  
+class _ScreenhandlerState extends State<Screenhandler> {
+  final db = FirebaseFirestore.instance;
+  //final databaseReference = FirebaseDatabase.instance.ref();
+
   final userName = FirebaseAuth.instance.currentUser!.displayName;
   final userEmail = FirebaseAuth.instance.currentUser!.email;
   final userPhoto = FirebaseAuth.instance.currentUser!.photoURL;
-  final userUid = FirebaseAuth.instance.currentUser!.uid;
-  late String adress; 
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  late String adress;
 
-  //late Map<String,dynamic> longitudeAndLatitude = {};
-  
-  final List<Widget> _screens = [  
+  final PersistentTabController _controller =
+      PersistentTabController(initialIndex: 0);
+
+  List<Widget> _screens() {
+    return [
       const HomePage(),
       const History(),
       const Category(),
       const Account(),
-  ];
-
-  // Future<Map<String,dynamic>> saveCurrentPosition() async{
-  //   final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-  //   final latitude = position.latitude;
-  //   final longitude = position.longitude;
-  //   final Map<String, dynamic> currentLocation = {
-  //     'latitude': latitude,
-  //     'longitude': longitude,
-  //   };
-  //   longitudeAndLatitude = currentLocation;
-  //   databaseReference.child('clients').child(userUid).update(currentLocation);
-  //   _screens = [  
-  //     HomePage(longitudeAndLatitude: longitudeAndLatitude.toString()),
-  //     const History(),
-  //     const Category(),
-  //     Account(userName: userName.toString(), userEmail: userEmail.toString(), userImageUrl: userPhoto.toString()),
-  //   ];
-  //   return currentLocation;
-  // }
-
-  // Future<void> saveCurrentPosition() async{
-  //   final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-  //   final latitude = position.latitude;
-  //   final longitude = position.longitude;
-  //   final Map<String, dynamic> currentLocation = {
-  //     'latitude': latitude,
-  //     'longitude': longitude,
-  //   };
-  //   databaseReference.child('clients').child(userUid).update(currentLocation);
-  //   //longitudeAndLatitude = currentLocation;
-    
-  //   //return currentLocation;
-  // }
-
-  Future<void> saveUserDataToFirebase() async {
-    var status = await Permission.location.status;
-    if (status.isDenied) {
-      Permission.location.request();
-    }
-    databaseReference.child("users").child(userUid).once().then((event) async {
-      final dataSnapshot = event.snapshot;
-      if (dataSnapshot.value != null) {
-        return true;
-      } else {
-        Map<String,String> user = {
-          'name': userName.toString(),
-          'email': userEmail.toString(),
-          'photoUrl': userPhoto.toString(),
-        };
-        databaseReference.child('clients').child(userUid).set(user);
-        return false;
-      }
-    }); 
+    ];
   }
 
-  // void startTimer() {
-  //   Timer.periodic(const Duration(seconds: 15), (timer) {
-  //     saveCurrentPosition();
-  //     // setState(() {});
-  //   });
-  // }
+  List<PersistentBottomNavBarItem> _navBarsItems() {
+    return [
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.home),
+        title: 'Inicio',
+        activeColorPrimary: Colors.blue,
+        inactiveColorPrimary: Colors.grey,
+      ),
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.schedule),
+        title: 'Historial',
+        activeColorPrimary: Colors.blue,
+        inactiveColorPrimary: Colors.grey,
+      ),
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.category),
+        title: 'Categorías',
+        activeColorPrimary: Colors.blue,
+        inactiveColorPrimary: Colors.grey,
+      ),
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.person),
+        title: 'Cuenta',
+        activeColorPrimary: Colors.blue,
+        inactiveColorPrimary: Colors.grey,
+      ),
+    ];
+  }
+
+  void saveUserDataToFireStore() {
+    final client = <String, dynamic>{
+      'name': userName.toString(),
+      'email': userEmail.toString(),
+      'photoUrl': userPhoto.toString(),
+    };
+
+    db.collection('clients').doc(uid).set(client);
+  }
 
   int selectedIndex = 0;
 
-  void _onItemTapped(int index) {
-    setState(() {
-      selectedIndex = index;
-    });
-  }
-
   @override
   void initState() {
-    saveUserDataToFirebase();
-    //saveCurrentPosition();
-    //startTimer();
+    //saveUserDataToFirebase();
+    saveUserDataToFireStore();
+    getCurrentLocation().then((value) {
+      Provider.of<AddressProvider>(context, listen: false)
+          .setAddressData(value);
+    });
+    Future.delayed(Duration.zero, () async {
+      Provider.of<UserProvider>(context, listen: false).setUserId(uid);
+    });
     super.initState();
   }
 
@@ -121,18 +131,24 @@ class _ScreenhandlerState extends State<Screenhandler> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: _screens[selectedIndex]
-      ), 
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const <BottomNavigationBarItem>[
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-        BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Historial'),
-        BottomNavigationBarItem(icon: Icon(Icons.label), label: 'Categorias'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
-      ],
-      currentIndex: selectedIndex,
-      onTap: _onItemTapped,
+        child: PersistentTabView(
+          context,
+          navBarHeight: 60.0,
+          controller: _controller,
+          screens: _screens(),
+          items: _navBarsItems(),
+          confineInSafeArea: true,
+          backgroundColor: Colors.white,
+          handleAndroidBackButtonPress: true,
+          resizeToAvoidBottomInset: true,
+          hideNavigationBarWhenKeyboardShows: true,
+          decoration: NavBarDecoration(
+            borderRadius: BorderRadius.circular(10.0),
+            colorBehindNavBar: Colors.white,
+          ),
+          popAllScreensOnTapOfSelectedTab: true,
+          navBarStyle: NavBarStyle.style1,
+        ),
       ),
     );
   }

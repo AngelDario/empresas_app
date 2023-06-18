@@ -1,6 +1,21 @@
 import 'dart:ui';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:empresas_cliente/screens/serviceForm.dart';
+//import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+void serviceForm(BuildContext context, String id){
+  showDialog(
+    context: context, 
+    builder: (BuildContext context){
+      return AlertDialog(
+        title: const Text('Agregar servicio'),
+        content: ServiceForm(workerId: id,),
+      );
+    }
+  );
+}
 
 class ProfilePage extends StatefulWidget {
   final String id;
@@ -14,13 +29,16 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> { 
+class _ProfilePageState extends State<ProfilePage> {
+
+  late String workerName;
 
   Future<Map<dynamic, dynamic>> getProfileData() async{
-    final databaseReference = FirebaseDatabase.instance.ref('clients').child(widget.id);
-    DatabaseEvent data = await databaseReference.once();
+    // pedir los datos a firestore y retornarlos
+    final databaseReference = FirebaseFirestore.instance.collection('workers').doc(widget.id);
+    DocumentSnapshot data = await databaseReference.get();
 
-    Map<dynamic, dynamic> profileData = data.snapshot.value as Map<dynamic, dynamic>;
+    Map<dynamic, dynamic> profileData = data.data() as Map<dynamic, dynamic>;
     return profileData;
   }
 
@@ -99,15 +117,19 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ],
                       ),
-                      const Padding(
-                        padding: EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
-                        child: Text(
-                          //snapshot.data!['description'],
-                          "Lorem ipsum dolor sit amet, cons ectetur adipiscing elit. Nulla vitae elit libero, a pharetra augue. Donec id elit non mi porta gravida at eget metus. Nullam id dolor id nibh ultricies vehicula ut id elit.",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.normal,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 16.0),
+                          child: Text(
+                            //"Lorem ipsum dolor sit amet, cons ectetur adipiscing elit. Nulla vitae elit libero, a pharetra augue. Donec id elit non mi porta gravida at eget metus. Nullam id dolor id nibh ultricies vehicula ut id elit.",
+                            snapshot.data!['description'],
+                            textAlign: TextAlign.left,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.normal,
+                            ),
                           ),
                         ),
                       ),
@@ -167,7 +189,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   FloatingActionButton(
                     heroTag: "btn1",
-                    onPressed: () {},
+                    onPressed: () {serviceForm(context, widget.id);},
                     child: const Icon(Icons.add),
                   ),
                   const SizedBox(height: 16),

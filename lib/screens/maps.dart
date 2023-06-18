@@ -1,18 +1,21 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:empresas_cliente/providers/address_provider.dart';
+import 'package:provider/provider.dart';
 
 class MapScreen extends StatefulWidget {
-  final Map<String, dynamic> currentLocation;
-  final String currentAddress;
-  final ValueSetter<String> onVariableRetornada;
+  // final Map<String, dynamic> currentLocation;
+  // final String currentAddress;
+  // final ValueSetter<String> onVariableRetornada;
 
   const MapScreen({
-    required this.onVariableRetornada,
-    required this.currentAddress,
-    required this.currentLocation,
+    // required this.onVariableRetornada,
+    // required this.currentAddress,
+    // required this.currentLocation,
     super.key
     });
   
@@ -22,29 +25,26 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final Completer<GoogleMapController> _controller =Completer<GoogleMapController>();
-  late Map<String,dynamic> newLocation;
-  late LatLng _finalLocation = LatLng(widget.currentLocation['latitude'], widget.currentLocation['longitude']);
-  late String address = widget.currentAddress;
+  late Map<String,dynamic> newLocation; 
+  late LatLng _finalLocation;
+  late String _address;
   
   @override
   void initState() {
+    _finalLocation = LatLng(Provider.of<AddressProvider>(context, listen: false).addressData['latitude'], Provider.of<AddressProvider>(context, listen: false).addressData['longitude']);
+    _address = Provider.of<AddressProvider>(context, listen: false).addressData['address'];
     super.initState();
   }
 
   getAddressFromCoordinates(dynamic longitude, dynamic latitude) async {
     
-    // final databaseReference = FirebaseDatabase.instance.ref().child('clients').child(FirebaseAuth.instance.currentUser!.uid);
-    // DatabaseEvent event = await databaseReference.once();
-    // Map<dynamic,dynamic> data = event.snapshot.value as Map<dynamic,dynamic>;
     List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
     Placemark place = placemarks[0]; // Selecciona el primer resultado
     String addr = "${place.street}, ${place.locality}, ${place.country}";
     
     setState(() {
-      address = addr;
+      _address = addr;
     });
-    //print(address);
-    //return addr; // Imprime la dirección obtenida
   }
 
   Future<void> _delayedPop(BuildContext context) async {
@@ -133,7 +133,7 @@ class _MapScreenState extends State<MapScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children:[
                           Text(
-                            address,
+                            _address,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -155,8 +155,15 @@ class _MapScreenState extends State<MapScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   //verificar si se esta cargando aun el contexto
-                  widget.onVariableRetornada(address);
-                  _delayedPop(context);
+                  Map<String, dynamic> location = {
+                    'latitude': _finalLocation.latitude,
+                    'longitude': _finalLocation.longitude,
+                    'address': _address
+                  };
+                  context.read<AddressProvider>().setAddressData(location);
+                  // widget.onVariableRetornada(_address);
+                  //_delayedPop(context);
+                  Navigator.pop(context);
                 },
                 child: const Text('Aceptar'),
               ),
